@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#5FA8E6">
+<title>Flight weather planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @property --sky-a { syntax: '<color>'; inherits: true; initial-value: #A7C4DA; }
+  @property --sky-b { syntax: '<color>'; inherits: true; initial-value: #E9F1F6; }
+  @property --ink   { syntax: '<color>'; inherits: true; initial-value: #13212E; }
+
+  :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { height: 100%; }
+  body {
+    margin: 0; min-height: 100%;
+    font-family: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.5;
+    color: var(--ink); background-color: var(--sky-b);
+    background-image: linear-gradient(170deg, var(--sky-a) 0%, var(--sky-b) 78%); background-attachment: fixed;
+    transition: --sky-a 1.2s ease, --sky-b 1.2s ease, --ink 1.2s ease;
+    --glass: rgba(255,255,255,.5); --line: rgba(15,30,45,.16); --soft: rgba(15,30,45,.06);
+  }
+  body[data-mood="idle"]  { --sky-a:#A7C4DA; --sky-b:#E9F1F6; --ink:#13212E; }
+  body[data-mood="clear"] { --sky-a:#5FA8E6; --sky-b:#D6ECFA; --ink:#0F2233; }
+  body[data-mood="cloud"] { --sky-a:#93A5B6; --sky-b:#E2E8EE; --ink:#1B2733; }
+  body[data-mood="rain"]  { --sky-a:#7C8C9E; --sky-b:#C3CCD5; --ink:#101A24; }
+  body[data-mood="storm"] { --sky-a:#3C4658; --sky-b:#6E7A8C; --ink:#F1F4F8; --glass:rgba(255,255,255,.1); --line:rgba(255,255,255,.2); --soft:rgba(255,255,255,.06); }
+  body[data-mood="night"] { --sky-a:#141C36; --sky-b:#34426B; --ink:#EAF0FF; --glass:rgba(255,255,255,.08); --line:rgba(255,255,255,.18); --soft:rgba(255,255,255,.05); }
+
+  main.wrap { max-width: 960px; margin: 0 auto; padding: 28px 20px 210px; position: relative; z-index: 1; }
+  .q, button, input { font: inherit; color: var(--ink); }
+  .glass { background: var(--glass); border: 1px solid var(--line); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
+  .search { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  @media (max-width: 480px) { .search { grid-template-columns: 1fr; } main.wrap { padding: 18px 14px 190px; } .cat-tile { min-width: 0; } }
+  .q, .small-in { background: var(--glass); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .q::placeholder, .small-in::placeholder { color: var(--ink); opacity: .5; }
+  button.go { border: 0; border-radius: 12px; padding: 12px 20px; font-weight: 600; cursor: pointer; background: var(--ink); color: var(--sky-b); white-space: nowrap; }
+  button.go:disabled { opacity: .6; cursor: progress; }
+  :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .settings { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 12px; font-size: 14px; }
+  .settings label { display: inline-flex; align-items: center; gap: 8px; }
+  .small-in { padding: 7px 10px; border-radius: 10px; width: 9.5em; }
+  .small-in.num { width: 5.5em; }
+  .muted { opacity: .72; }
+  .status { margin-top: 18px; font-size: 14px; opacity: .8; }
+  .error { margin-top: 22px; padding: 14px 16px; border-radius: 12px; }
+
+  .disclaimer { margin-top: 18px; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.45; }
+
+  .station { margin-top: 34px; }
+  .station h1 { font-family: "Bricolage Grotesque", "Figtree", sans-serif; font-weight: 600; font-size: clamp(1.5rem, 4vw, 2.2rem); line-height: 1.1; margin: 0; letter-spacing: -.01em; }
+  .station .sub { margin-top: 6px; font-size: 15px; opacity: .8; }
+
+  .now { display: grid; grid-template-columns: auto 1fr; gap: 18px; margin-top: 20px; align-items: stretch; }
+  @media (max-width: 700px) { .now { grid-template-columns: 1fr; } }
+  .cat-tile { border-radius: 20px; padding: 14px 26px 18px; color: #fff; display: flex; flex-direction: column; justify-content: center; min-width: 210px; }
+  .cat-tile .big { font-family: "Bricolage Grotesque", "Figtree", sans-serif; font-weight: 800; font-size: clamp(4.5rem, 14vw, 7.5rem); line-height: .9; letter-spacing: -.04em; }
+  .cat-tile .cap { font-size: 14px; opacity: .92; margin-top: 6px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .stat { background: var(--glass); padding: 10px 14px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .stat .k { font-size: 13px; opacity: .72; }
+  .stat .v { font-size: 1.05rem; font-weight: 600; }
+  .stat .v.warn { color: #C2410C; }
+  body[data-mood="night"] .stat .v.warn, body[data-mood="storm"] .stat .v.warn { color: #FDBA74; }
+
+  .raw { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.6; padding: 12px 14px; border-radius: 12px; margin: 12px 0 0; white-space: pre-wrap; word-break: break-word; }
+  section.panel { margin-top: 44px; }
+  section.panel > h2 { font-family: "Bricolage Grotesque", "Figtree", sans-serif; font-weight: 600; font-size: 1.4rem; margin: 0 0 4px; letter-spacing: -.01em; }
+  section.panel > .lede { margin: 0 0 14px; font-size: 15px; opacity: .8; max-width: 70ch; }
+  h3 { font-size: 1rem; font-weight: 600; margin: 22px 0 8px; }
+
+  .chip { display: inline-block; padding: 1px 9px; border-radius: 999px; color: #fff; font-weight: 600; font-size: 13px; line-height: 1.6; white-space: nowrap; }
+  .chip.none { background: var(--soft); color: var(--ink); font-weight: 500; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; margin-top: 8px; align-items: center; }
+  .legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .strip-label { font-size: 13px; opacity: .75; margin: 10px 0 2px; }
+  .chart { overflow-x: auto; }
+  .chart-inner { min-width: 620px; }
+  .tip { background: rgba(255,255,255,.97); color: #13212E; border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.4; white-space: pre-line; box-shadow: 0 4px 16px rgba(0,0,0,.12); max-width: 280px; }
+
+  .table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 760px; }
+  th, td { text-align: left; padding: 9px 12px; vertical-align: top; }
+  thead th { font-weight: 600; font-size: 13px; background: var(--soft); }
+  tbody tr { border-top: 1px solid var(--line); background: var(--glass); }
+  tbody tr.overlay td { opacity: .88; }
+  td.mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 13px; }
+  td .warn { color: #C2410C; font-weight: 600; }
+  body[data-mood="night"] td .warn, body[data-mood="storm"] td .warn { color: #FDBA74; }
+  tr.tomorrow td:first-child { font-weight: 700; }
+
+  .adv { border-radius: 14px; padding: 12px 14px; margin-top: 10px; }
+  .adv .t { font-weight: 600; }
+  .adv details { margin-top: 6px; font-size: 13px; }
+  .adv summary { cursor: pointer; opacity: .8; }
+  .pirep { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 13px; padding: 8px 12px; border-top: 1px solid var(--line); }
+  .pirep:first-child { border-top: 0; }
+  .uua { color: #fff; background: #B91C1C; border-radius: 6px; padding: 0 6px; font-family: "Figtree", sans-serif; font-weight: 700; font-size: 12px; margin-right: 6px; }
+
+  .empty { margin-top: 60px; max-width: 560px; }
+  .empty .lead { font-family: "Bricolage Grotesque", "Figtree", sans-serif; font-size: clamp(2rem, 6vw, 3.3rem); font-weight: 800; line-height: 1.02; letter-spacing: -.03em; margin: 0 0 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .ex { background: var(--glass); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+  .ex:hover { border-color: var(--ink); }
+  .credit { margin-top: 48px; font-size: 12px; opacity: .65; }
+  .credit a, .disclaimer a { color: inherit; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* contrails */
+  .contrails { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+  .contrails path { fill: none; stroke: #fff; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; stroke-width: 3; animation: trail 3.2s cubic-bezier(.3,.6,.2,1) forwards; }
+  @keyframes trail { 0% { stroke-dashoffset: 1; opacity: .75; } 45% { stroke-dashoffset: 0; opacity: .7; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+
+  /* ---------- bluebird ---------- */
+  .bird-wrap { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 2; width: 150px; pointer-events: none; display: flex; flex-direction: column; align-items: flex-end; }
+  .bird-wrap.arriving { animation: swoop 1.15s cubic-bezier(.3,.7,.3,1) both; }
+  @keyframes swoop { 0% { transform: translate(-340px, -300px) rotate(-12deg); opacity: 0; } 12% { opacity: 1; } 65% { transform: translate(-30px, 18px) rotate(6deg); } 100% { transform: none; } }
+  .bubble { background: var(--glass); border: 1px solid var(--line); border-radius: 14px 14px 4px 14px; padding: 8px 12px; font-size: 13px; line-height: 1.35; max-width: 230px; margin-bottom: 2px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: fadeIn .4s ease 1.1s both; }
+  .bubble p { margin: 0; }
+  .bubble p + p { margin-top: 4px; opacity: .85; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .bird-svg { width: 100%; height: auto; overflow: visible; color: var(--ink); }
+  .bird-svg g { transform-box: view-box; }
+  .bird-svg .shadow, .bird-svg .cloud, .bird-svg .wind-lines, .bird-svg .zzz, .bird-svg .eyes-closed { display: none; }
+  .wingL { transform-origin: 58px 88px; }
+  .wingR { transform-origin: 102px 88px; }
+  .head { transform-origin: 80px 84px; }
+  .body { transform-origin: 80px 134px; }
+  .scarf-tail { transform-origin: 98px 88px; animation: scarf 1.3s ease-in-out infinite alternate; }
+  .eyes-open { transform-origin: 80px 58px; }
+  @keyframes scarf { from { transform: rotate(-6deg); } to { transform: rotate(9deg); } }
+  @keyframes blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+  @keyframes look { 0%, 100% { transform: rotate(0deg); } 30% { transform: rotate(-9deg); } 60% { transform: rotate(7deg); } }
+  @keyframes flapL { from { transform: rotate(-18deg); } to { transform: rotate(55deg); } }
+  @keyframes flapR { from { transform: rotate(18deg); } to { transform: rotate(-55deg); } }
+  @keyframes hover { from { transform: translateY(-5px); } to { transform: translateY(4px); } }
+
+  /* flying: VFR */
+  .pose-fly .branch, .pose-fly .feet { display: none; }
+  .pose-fly .shadow { display: inline; }
+  .pose-fly .body { animation: hover 1.2s ease-in-out infinite alternate; }
+  .pose-fly .wingL { animation: flapL .28s ease-in-out infinite alternate; }
+  .pose-fly .wingR { animation: flapR .28s ease-in-out infinite alternate; }
+  /* perched: MVFR */
+  .pose-perch .head { animation: look 5s ease-in-out infinite; }
+  .pose-perch .eyes-open { animation: blink 4.5s infinite; }
+  /* grounded: IFR / LIFR */
+  .pose-grounded .goggles { transform: translateY(16px); }
+  .pose-grounded .cloud { display: inline; }
+  .pose-grounded .cloud-puff { animation: hover 2.4s ease-in-out infinite alternate; }
+  .pose-grounded .drop { animation: drop 1s linear infinite; }
+  .pose-grounded .drop:nth-child(2) { animation-delay: .33s; }
+  .pose-grounded .drop:nth-child(3) { animation-delay: .66s; }
+  .pose-grounded .body { transform: scale(1.04, .96); }
+  @keyframes drop { from { transform: translateY(0); opacity: .9; } to { transform: translateY(26px); opacity: 0; } }
+  /* windy */
+  .pose-windy .wind-lines { display: inline; }
+  .pose-windy .body { animation: lean .8s ease-in-out infinite alternate; }
+  .pose-windy .scarf-tail { animation-duration: .25s; }
+  .pose-windy .wingR { animation: ruffle .3s ease-in-out infinite alternate; }
+  @keyframes lean { from { transform: rotate(-5deg); } to { transform: rotate(-11deg); } }
+  @keyframes ruffle { from { transform: rotate(0deg); } to { transform: rotate(-16deg); } }
+  .wind-lines path { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; opacity: .55; stroke-dasharray: 18 42; animation: gust .9s linear infinite; }
+  @keyframes gust { to { stroke-dashoffset: -60; } }
+  /* night */
+  .pose-sleep .eyes-open { display: none; }
+  .pose-sleep .eyes-closed, .pose-sleep .zzz { display: inline; }
+  .pose-sleep .head { transform: rotate(10deg); }
+  .pose-sleep .body { animation: breathe 3.2s ease-in-out infinite; }
+  @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+  .zzz text { fill: currentColor; font-family: "Bricolage Grotesque", "Figtree", sans-serif; font-weight: 800; opacity: 0; animation: zfloat 3s ease-out infinite; }
+  .zzz text:nth-child(2) { animation-delay: 1s; }
+  .zzz text:nth-child(3) { animation-delay: 2s; }
+  @keyframes zfloat { 0% { opacity: 0; transform: translate(0, 8px); } 30% { opacity: .8; } 100% { opacity: 0; transform: translate(10px, -14px); } }
+  /* arriving */
+  .bird-svg.arrive .branch, .bird-svg.arrive .feet, .bird-svg.arrive .shadow, .bird-svg.arrive .cloud, .bird-svg.arrive .zzz { display: none; }
+  .bird-svg.arrive .wingL { animation: flapL .2s ease-in-out infinite alternate; }
+  .bird-svg.arrive .wingR { animation: flapR .2s ease-in-out infinite alternate; }
+  .bird-svg.arrive .body, .bird-svg.arrive .head { animation: none; transform: none; }
+
+  @media (max-width: 620px) { .bird-wrap { width: 100px; } .bubble { font-size: 12px; max-width: 170px; } }
+  @media (prefers-reduced-motion: reduce) {
+    body { transition: none; }
+    .bird-wrap.arriving, .bubble, .bird-svg *, .contrails path { animation: none !important; }
+    .contrails { display: none; }
+  }
+</style>
+</head>
+<body data-mood="idle">
+<div id="root"></div>
+<script src="vendor/react.production.min.js"></script>
+<script src="vendor/react-dom.production.min.js"></script>
+<script src="vendor/prop-types.min.js"></script>
+<script src="vendor/Recharts.js"></script>
+<script src="vendor/htm.umd.js"></script>
+<script>
+(function () {
+  const html = htm.bind(React.createElement);
+  const { useState, useEffect } = React;
+  const { ResponsiveContainer, ComposedChart, Line, Bar, BarChart, XAxis, YAxis, Tooltip, CartesianGrid, Cell, ReferenceLine } = Recharts;
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+  const pad2 = n => String(n).padStart(2, "0");
+  const num = v => (v === null || v === undefined || v === "" || isNaN(+v)) ? null : +v;
+  const rnd = v => v == null ? null : Math.round(v);
+  const fmtInt = n => n == null ? "n/a" : Math.round(n).toLocaleString("en-US");
+
+  const IS_APP = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
+  const AWC_BASE = IS_APP ? "https://aviationweather.gov/api/data/" : "/awc/";
+  const FILE_MSG = "This page gets its aviation weather through a small helper. In a terminal, run python3 flightwx.py and use the page it opens at http://localhost:8765.";
+  const NET_MSG = IS_APP ? "Couldn't reach aviationweather.gov. Check your phone's data or Wi-Fi connection, then try again." : "Couldn't reach aviationweather.gov. Check that flightwx.py is still running and that you're online, then try again.";
+
+  /* ---------- flight categories ---------- */
+  const CAT = { VFR: "#16A34A", MVFR: "#2563EB", IFR: "#DC2626", LIFR: "#C026D3" };
+  const RANK = { VFR: 0, MVFR: 1, IFR: 2, LIFR: 3 };
+  const worse = (a, b) => !a ? b : !b ? a : (RANK[b] > RANK[a] ? b : a);
+  function catOf(ceil, vis) {
+    if (ceil == null && vis == null) return null;
+    if ((ceil != null && ceil < 500) || (vis != null && vis < 1)) return "LIFR";
+    if ((ceil != null && ceil < 1000) || (vis != null && vis < 3)) return "IFR";
+    if ((ceil != null && ceil <= 3000) || (vis != null && vis <= 5)) return "MVFR";
+    return "VFR";
+  }
+  function parseVis(v) {
+    if (v == null || v === "") return null;
+    if (typeof v === "number") return v;
+    let s = String(v).toUpperCase().replace("SM", "").trim();
+    let bump = 0;
+    if (s.endsWith("+")) { bump = .01; s = s.slice(0, -1); }
+    if (s.startsWith("P")) { bump = .01; s = s.slice(1); }
+    if (s.startsWith("M")) { bump = -.01; s = s.slice(1); }
+    const total = s.split(/\s+/).reduce((acc, part) => {
+      if (part.includes("/")) { const [a, b] = part.split("/").map(Number); return acc + (b ? a / b : 0); }
+      return acc + (Number(part) || 0);
+    }, 0);
+    return isNaN(total) ? null : total + bump;
+  }
+  const fmtVis = v => { const n = parseVis(v); if (n == null) return "n/a"; if (n > 6) return "6+ SM"; return `${+n.toFixed(2)} SM`; };
+  const CEIL_COVERS = ["BKN", "OVC", "OVX", "VV"];
+  function ceilingOf(clouds) {
+    let c = null;
+    for (const l of clouds || []) if (CEIL_COVERS.includes(String(l.cover).toUpperCase()) && l.base != null) c = c == null ? +l.base : Math.min(c, +l.base);
+    return c;
+  }
+  function fmtClouds(clouds) {
+    if (!clouds || !clouds.length) return "No clouds reported";
+    return clouds.map(c => {
+      const cover = String(c.cover || "").toUpperCase();
+      if (["CLR", "SKC", "NSC", "CAVOK", "NCD"].includes(cover)) return cover;
+      return cover + (c.base != null ? pad2(Math.round(c.base / 100)).padStart(3, "0") : "") + (c.type || "");
+    }).join(" ");
+  }
+  function fmtWind(d, s, g) {
+    if (s == null) return "n/a";
+    if (+s === 0) return "Calm";
+    const dir = d === "VRB" ? "VRB" : String(d).padStart(3, "0");
+    return `${dir}° ${s}${g ? "G" + g : ""} kt`.replace("VRB°", "VRB");
+  }
+
+  /* ---------- runways and crosswind ---------- */
+  function endsFromIds(ids) {
+    const out = [];
+    for (const id of ids) for (const e of String(id).split("/")) {
+      const m = e.trim().toUpperCase().match(/^(\d{1,2})([LRCW]?)$/);
+      if (m && +m[1] >= 1 && +m[1] <= 36) out.push({ name: pad2(+m[1]) + m[2], hdg: +m[1] * 10 });
+    }
+    return out;
+  }
+  function endsFromText(text) {
+    const ids = [];
+    for (const tok of text.split(/[,\s]+/).filter(Boolean)) {
+      if (tok.includes("/")) { ids.push(tok); continue; }
+      const m = tok.toUpperCase().match(/^(\d{1,2})([LRC]?)$/);
+      if (!m) continue;
+      const n = +m[1], opp = ((n + 17) % 36) + 1, side = { L: "R", R: "L", C: "C" }[m[2]] || "";
+      ids.push(`${pad2(n)}${m[2]}/${pad2(opp)}${side}`);
+    }
+    return endsFromIds(ids);
+  }
+  function crosswind(ends, dir, spd, gst) {
+    if (!ends.length || spd == null) return null;
+    if (+spd === 0) return { rwy: ends[0].name, xw: 0, xwg: null };
+    if (dir === "VRB" || dir == null || isNaN(+dir)) return { rwy: "any", xw: +spd, xwg: gst ? +gst : null, vrb: true };
+    const all = ends.map(e => {
+      const a = (+dir - e.hdg) * Math.PI / 180;
+      return { rwy: e.name, head: spd * Math.cos(a), xw: Math.abs(spd * Math.sin(a)), xwg: gst ? Math.abs(gst * Math.sin(a)) : null };
+    });
+    const pool = all.filter(x => x.head >= -0.5);
+    return (pool.length ? pool : all).reduce((b, x) => x.xw < b.xw ? x : b);
+  }
+  const xwText = x => !x ? "n/a" : x.vrb ? `Up to ${rnd(x.xwg ?? x.xw)} kt (variable)` : `${rnd(x.xw)}${x.xwg != null && rnd(x.xwg) > rnd(x.xw) ? "G" + rnd(x.xwg) : ""} kt, Rwy ${x.rwy}`;
+  const xwPeak = x => !x ? null : Math.max(x.xw || 0, x.xwg || 0);
+
+  /* ---------- time ---------- */
+  const toMs = v => {
+    if (v == null || v === "") return null;
+    if (typeof v === "number") return v < 1e11 ? v * 1000 : v;
+    if (/^\d+$/.test(v)) return toMs(+v);
+    const t = Date.parse(v); return isNaN(t) ? null : t;
+  };
+  const zHM = ms => { const d = new Date(ms); return `${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}Z`; };
+  const zDay = ms => new Date(ms).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+  const zDH = ms => `${zDay(ms)} ${zHM(ms)}`;
+  const loc = (ms, tz, withDay) => new Date(ms).toLocaleString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", ...(withDay ? { weekday: "short" } : {}) });
+  const hour12 = h => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
+
+  /* ---------- geography ---------- */
+  function distNm(a1, o1, a2, o2) {
+    const r = Math.PI / 180, dA = (a2 - a1) * r, dO = (o2 - o1) * r;
+    const h = Math.sin(dA / 2) ** 2 + Math.cos(a1 * r) * Math.cos(a2 * r) * Math.sin(dO / 2) ** 2;
+    return 2 * 3440.065 * Math.asin(Math.sqrt(h));
+  }
+  function polyHas(coords, lat, lon) {
+    if (!Array.isArray(coords) || coords.length < 3) return false;
+    const pts = coords.map(c => Array.isArray(c) ? { y: +c[1], x: +c[0] } : { y: +c.lat, x: +c.lon }).filter(p => !isNaN(p.x) && !isNaN(p.y));
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const a = pts[i], b = pts[j];
+      if (((a.y > lat) !== (b.y > lat)) && (lon < (b.x - a.x) * (lat - a.y) / (b.y - a.y) + a.x)) inside = !inside;
+    }
+    return inside;
+  }
+  const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
+  const COUNTRY = {};
+  for (let i = 65; i < 91; i++) for (let j = 65; j < 91; j++) {
+    const code = String.fromCharCode(i, j);
+    let name; try { name = regionNames.of(code); } catch (e) { continue; }
+    if (name && name !== code) COUNTRY[name.toLowerCase()] = code;
+  }
+  Object.assign(COUNTRY, { usa: "US", us: "US", "united states of america": "US", uk: "GB", england: "GB", scotland: "GB", wales: "GB" });
+  const US_STATES = { AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",DC:"District of Columbia",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming" };
+  const STATE_NAMES = Object.fromEntries(Object.values(US_STATES).map(n => [n.toLowerCase(), n]));
+
+  /* ---------- data fetching ---------- */
+  class UserError extends Error { constructor(m) { super(m); this.user = true; } }
+  async function awc(ep, params = {}) {
+    const r = await fetch(`${AWC_BASE}${ep}?` + new URLSearchParams({ format: "json", ...params }), { headers: { Accept: "application/json" } });
+    const text = await r.text();
+    if (!r.ok) {
+      let msg = ""; try { msg = JSON.parse(text).error || ""; } catch (e) {}
+      if (r.status === 429) msg = msg || "aviationweather.gov is rate limiting requests. Wait a minute and try again.";
+      const err = new Error(msg || `aviationweather.gov answered ${r.status}`); err.status = r.status; err.server = !!msg; throw err;
+    }
+    if (!text.trim()) return [];
+    const j = JSON.parse(text);
+    if (Array.isArray(j)) return j;
+    if (j && Array.isArray(j.features)) return j.features.map(f => ({ ...f.properties, coords: f.geometry && f.geometry.coordinates && f.geometry.coordinates[0] }));
+    if (j && Array.isArray(j.data)) return j.data;
+    return j ? [j] : [];
+  }
+  const soft = p => p.catch(e => { if (e.status && e.status < 500) return []; throw e; });
+  const orNull = p => p.catch(() => null);
+
+  async function findAirport(code) {
+    const c = code.toUpperCase();
+    let a = await soft(awc("airport", { ids: c }));
+    if (!a.length && /^[A-Z]{3}$/.test(c)) a = await soft(awc("airport", { ids: "K" + c }));
+    return a.find(x => x && num(x.lat) != null) || null;
+  }
+  const bbox = (lat, lon, d) => [lat - d, lon - d * 1.3, lat + d, lon + d * 1.3].map(v => v.toFixed(3)).join(",");
+  async function nearest(ep, lat, lon, d) {
+    const list = await soft(awc(ep, { bbox: bbox(lat, lon, d) }));
+    let best = null, bd = Infinity;
+    for (const s of list) {
+      if (num(s.lat) == null) continue;
+      const dd = distNm(lat, lon, +s.lat, +s.lon);
+      if (dd < bd) { bd = dd; best = s; }
+    }
+    return best ? { item: best, dist: bd } : null;
+  }
+  async function geocodePlace(text) {
+    const parts = text.split(",").map(s => s.trim()).filter(Boolean);
+    const name = parts[0];
+    let cc = "", region = "";
+    if (parts.length > 1) {
+      const last = parts[parts.length - 1], up = last.toUpperCase(), lk = last.toLowerCase();
+      if (US_STATES[up]) { cc = "US"; region = US_STATES[up]; }
+      else if (STATE_NAMES[lk]) { cc = "US"; region = STATE_NAMES[lk]; }
+      else if (COUNTRY[lk]) cc = COUNTRY[lk];
+      else region = last;
+    }
+    const p = new URLSearchParams({ name, count: "10", language: "en", format: "json" });
+    if (cc) p.set("countryCode", cc);
+    const r = await fetch("https://geocoding-api.open-meteo.com/v1/search?" + p);
+    if (!r.ok) throw new Error("geocode");
+    let list = (await r.json()).results || [];
+    if (region) { const hit = list.filter(x => [x.admin1, x.admin2, x.country].some(v => v && v.toLowerCase().includes(region.toLowerCase()))); if (hit.length) list = hit; }
+    const x = list[0];
+    return x ? { lat: x.latitude, lon: x.longitude, label: [x.name, x.admin1, x.country_code].filter(Boolean).join(", ") } : null;
+  }
+  async function fetchOutlook(lat, lon) {
+    const p = new URLSearchParams({
+      latitude: lat, longitude: lon, timezone: "auto", forecast_days: "7", wind_speed_unit: "kn",
+      current: "is_day",
+      hourly: "temperature_2m,dew_point_2m,cloud_cover_low,cloud_cover_mid,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation_probability,weather_code,cape,freezing_level_height,wind_speed_850hPa,wind_direction_850hPa,is_day",
+      daily: "sunrise,sunset"
+    });
+    const r = await fetch("https://api.open-meteo.com/v1/forecast?" + p);
+    if (!r.ok) throw new Error("outlook");
+    return r.json();
+  }
+
+  /* ---------- decoding ---------- */
+  function decodeMetar(m, ends, elevFt) {
+    if (!m) return null;
+    const clouds = m.clouds || [];
+    const ceil = ceilingOf(clouds), vis = parseVis(m.visib);
+    const cat = (m.fltCat && RANK[m.fltCat] != null) ? m.fltCat : catOf(ceil, vis);
+    const raw = m.rawOb || "";
+    let alt = null;
+    const a = raw.match(/\sA(\d{4})\b/), q = raw.match(/\sQ(\d{4})\b/);
+    if (a) alt = +a[1] / 100; else if (q) alt = +q[1] * 0.02953; else if (num(m.altim) != null) alt = +m.altim > 100 ? +m.altim * 0.02953 : +m.altim;
+    const temp = num(m.temp);
+    let da = null;
+    if (elevFt != null && alt != null && temp != null) {
+      const pa = elevFt + (29.92 - alt) * 1000;
+      da = pa + 120 * (temp - (15 - 2 * pa / 1000));
+    }
+    const wdir = m.wdir, wspd = num(m.wspd), wgst = num(m.wgst);
+    return { id: m.icaoId, name: m.name, raw, cat, ceil, vis, clouds, wdir, wspd, wgst, temp, dewp: num(m.dewp), alt, da, wx: m.wxString || "", obs: toMs(m.obsTime) ?? toMs(m.reportTime), xw: crosswind(ends, wdir, wspd, wgst) };
+  }
+
+  const FIELDS = ["wdir", "wspd", "wgst", "visib", "wx", "clouds"];
+  const isOverlay = p => p.ch === "TEMPO" || p.ch === "PROB" || !!p.prob;
+  const periodLabel = p => p.prob ? `PROB${p.prob}${p.ch === "TEMPO" ? " TEMPO" : ""}` : p.ch === "BASE" ? "Initial" : p.ch;
+  function pick(p) { const o = {}; for (const f of FIELDS) o[f] = p[f]; o.clouds = p.clouds || []; return o; }
+  function merge(st, p) { const o = { ...st }; for (const f of FIELDS) { const v = p[f]; if (f === "clouds") { if (v && v.length) o.clouds = v; } else if (v != null && v !== "") o[f] = v; } return o; }
+  const stCat = st => catOf(ceilingOf(st.clouds), parseVis(st.visib));
+
+  function decodeTaf(taf, ends) {
+    if (!taf) return null;
+    const P = (taf.fcsts || []).map(f => {
+      let ch = String(f.fcstChange || "").toUpperCase();
+      const prob = num(f.probability);
+      if (!ch) ch = prob ? "PROB" : "BASE";
+      if (ch.startsWith("PROB")) ch = "PROB";
+      return { from: toMs(f.timeFrom), to: toMs(f.timeTo), ch, prob, wdir: f.wdir, wspd: num(f.wspd), wgst: num(f.wgst), visib: f.visib, wx: f.wxString || "", clouds: f.clouds || [] };
+    }).filter(p => p.from != null).sort((a, b) => a.from - b.from);
+    const prevailingAt = s => {
+      let st = { clouds: [] };
+      for (const p of P) { if (isOverlay(p) || p.from > s) continue; st = (p.ch === "BASE" || p.ch === "FM") ? pick(p) : merge(st, p); }
+      return st;
+    };
+    const vFrom = toMs(taf.validTimeFrom) ?? (P[0] && P[0].from), vTo = toMs(taf.validTimeTo) ?? (P.length ? Math.max(...P.map(p => p.to || p.from)) : null);
+    const hours = [];
+    if (vFrom && vTo) for (let h = Math.floor(vFrom / 36e5) * 36e5; h < vTo; h += 36e5) {
+      const s = h + 18e5, st = prevailingAt(s);
+      let over = null;
+      for (const p of P) if (isOverlay(p) && p.from <= s && s < p.to) {
+        const ost = merge(st, p), oc = stCat(ost);
+        if (!over || RANK[oc] > RANK[over.cat]) over = { cat: oc, label: periodLabel(p), st: ost };
+      }
+      hours.push({ ms: h, k: `${pad2(new Date(h).getUTCDate())}${pad2(new Date(h).getUTCHours())}`, st, cat: stCat(st), over, xw: crosswind(ends, st.wdir, st.wspd, st.wgst), oxw: over ? crosswind(ends, over.st.wdir, over.st.wspd, over.st.wgst) : null });
+    }
+    const periods = P.map(p => {
+      const st = (p.ch === "BASE" || p.ch === "FM") ? pick(p) : merge(prevailingAt(p.from - 1), p);
+      return { ...p, st, cat: stCat(st), label: periodLabel(p), overlay: isOverlay(p), xw: crosswind(ends, st.wdir, st.wspd, st.wgst) };
+    });
+    const now = Date.now();
+    let worst = null, worstAt = null;
+    for (const h of hours) {
+      if (h.ms < now - 36e5 || h.ms > now + 24 * 36e5) continue;
+      for (const c of [h.cat, h.over && h.over.cat]) if (c && (!worst || RANK[c] > RANK[worst])) { worst = c; worstAt = h.ms; }
+    }
+    return { id: taf.icaoId, raw: taf.rawTAF || "", issued: toMs(taf.issueTime), from: vFrom, to: vTo, hours, periods, worst, worstAt };
+  }
+  const prettyTaf = raw => raw.replace(/\s+(FM\d{6}|TEMPO|BECMG|PROB\d{2})/g, "\n  $1");
+
+  function decodeOutlook(om, ends) {
+    if (!om || !om.hourly) return null;
+    const h = om.hourly, off = (om.utc_offset_seconds || 0) * 1000, now = Date.now();
+    const g = (k, i) => h[k] ? num(h[k][i]) : null;
+    const rows = [];
+    for (let i = 0; i < h.time.length; i++) {
+      const ms = Date.parse(h.time[i] + ":00Z") - off;
+      if (ms < now - 36e5) continue;
+      const T = g("temperature_2m", i), Td = g("dew_point_2m", i), low = g("cloud_cover_low", i), mid = g("cloud_cover_mid", i);
+      const spread = T != null && Td != null ? Math.max(0, T - Td) : null;
+      const ceil = low != null && low >= 60 && spread != null ? Math.min(6500, Math.max(100, Math.round(spread * 400 / 100) * 100)) : (mid != null && mid >= 60 ? 8000 : null);
+      const visM = g("visibility", i), vis = visM != null ? visM / 1609.34 : null;
+      const wind = rnd(g("wind_speed_10m", i)), gust = rnd(g("wind_gusts_10m", i)), dir = g("wind_direction_10m", i);
+      const x = crosswind(ends, dir, wind, gust);
+      const frz = g("freezing_level_height", i);
+      rows.push({
+        t: h.time[i], ms, day: h.time[i].slice(0, 10), hour: +h.time[i].slice(11, 13), isDay: g("is_day", i) === 1,
+        cat: catOf(ceil, vis), ceil, low, vis, wind, gust, dir, xw: x ? rnd(x.xw) : null, xwg: x && x.xwg != null ? rnd(x.xwg) : null, xwo: x,
+        w850: rnd(g("wind_speed_850hPa", i)), pop: g("precipitation_probability", i), cape: g("cape", i),
+        frz: frz != null ? Math.round(frz * 3.281 / 100) * 100 : null, code: g("weather_code", i)
+      });
+    }
+    const days = [];
+    for (const day of [...new Set(rows.map(r => r.day))]) {
+      const all = rows.filter(r => r.day === day), dl = all.filter(r => r.isDay);
+      if (!dl.length) continue;
+      let worst = null, vfr = 0, run = [], best = [], maxG = 0, maxX = null, maxPop = 0, minFrz = null, maxCape = 0, ts = false;
+      for (const r of dl) {
+        worst = worse(worst, r.cat);
+        if (r.cat === "VFR") vfr++;
+        run = r.cat === "VFR" ? [...run, r] : [];
+        if (run.length > best.length) best = run;
+        maxG = Math.max(maxG, r.gust || 0, r.wind || 0);
+        const xp = r.xwg != null ? Math.max(r.xw || 0, r.xwg) : r.xw;
+        if (xp != null) maxX = Math.max(maxX || 0, xp);
+        maxPop = Math.max(maxPop, r.pop || 0);
+        if (r.frz != null) minFrz = minFrz == null ? r.frz : Math.min(minFrz, r.frz);
+        maxCape = Math.max(maxCape, r.cape || 0);
+        if (r.code >= 95) ts = true;
+      }
+      if (maxCape >= 1000 && maxPop >= 30) ts = true;
+      days.push({ day, worst, vfr, n: dl.length, window: best.length ? `${hour12(best[0].hour)} to ${hour12((best[best.length - 1].hour + 1) % 24)}` : null, maxG, maxX, maxPop, minFrz, ts });
+    }
+    return { rows, days, tz: om.timezone || "UTC", isDay: om.current ? om.current.is_day === 1 : true };
+  }
+
+  const HAZ = { IFR: "IFR conditions", MT_OBSC: "Mountain obscuration", "TURB-HI": "Turbulence above FL180", "TURB-LO": "Turbulence below FL180", TURB: "Turbulence", ICE: "Icing", SFC_WND: "Strong surface winds", LLWS: "Low-level wind shear", CONVECTIVE: "Convective SIGMET", "MTN OBSCN": "Mountain obscuration", ASH: "Volcanic ash" };
+  function decodeAdvisories(sig, gair, lat, lon) {
+    const now = Date.now();
+    const sigs = (sig || []).filter(s => polyHas(s.coords, lat, lon) && (toMs(s.validTimeTo) == null || toMs(s.validTimeTo) > now)).map(s => ({
+      title: `${s.airSigmetType || "SIGMET"}: ${HAZ[s.hazard] || s.hazard || "Hazard"}${s.severity ? ` (severity ${s.severity})` : ""}`,
+      valid: [toMs(s.validTimeFrom), toMs(s.validTimeTo)], alt: [num(s.altitudeLow1), num(s.altitudeHi1)], raw: s.rawAirSigmet || ""
+    }));
+    const groups = {};
+    for (const gm of gair || []) {
+      const hz = String(gm.hazard || "").toUpperCase();
+      if (!hz || hz.includes("FZLVL")) continue;
+      const t = toMs(gm.validTime);
+      if (t != null && t < now - 3 * 36e5) continue;
+      if (!polyHas(gm.coords, lat, lon)) continue;
+      (groups[hz] = groups[hz] || { times: new Set(), due: gm.dueTo || "", base: gm.base, top: gm.top }).times.add(t);
+    }
+    const gairs = Object.entries(groups).map(([hz, v]) => ({ title: `G-AIRMET: ${HAZ[hz] || hz}`, times: [...v.times].filter(Boolean).sort(), due: v.due, base: v.base, top: v.top }));
+    return { sigs, gairs };
+  }
+
+  /* ---------- charts ---------- */
+  const tipBox = ({ active, payload }) => active && payload && payload[0] && payload[0].payload.tip ? html`<div className="tip">${payload[0].payload.tip}</div>` : null;
+  function CatStrip({ rows, dataKey, ticks, fmt, height = 30 }) {
+    return html`
+      <${ResponsiveContainer} width="100%" height=${height + 22}>
+        <${BarChart} data=${rows} margin=${{ top: 0, right: 0, left: 0, bottom: 0 }} barCategoryGap=${0} barGap=${0}>
+          <${XAxis} dataKey=${dataKey} ticks=${ticks} tickFormatter=${fmt} interval=${0} tick=${{ fontSize: 12, fill: "currentColor", fillOpacity: .75 }} axisLine=${false} tickLine=${false} />
+          <${YAxis} hide=${true} domain=${[0, 1]} />
+          <${Tooltip} content=${tipBox} cursor=${{ fill: "rgba(0,0,0,.08)" }} isAnimationActive=${false} />
+          <${Bar} dataKey="one" isAnimationActive=${false}>
+            ${rows.map((r, i) => html`<${Cell} key=${i} fill=${r.cat ? CAT[r.cat] : "rgba(128,128,128,.12)"} fillOpacity=${r.dim ? .45 : 1} />`)}
+          </${Bar}>
+        </${BarChart}>
+      </${ResponsiveContainer}>`;
+  }
+  function WindChart({ rows, dataKey, ticks, fmt, ink, limit, series, height = 220 }) {
+    const tickStyle = { fontSize: 12, fill: ink, fillOpacity: .72 };
+    return html`
+      <${ResponsiveContainer} width="100%" height=${height}>
+        <${ComposedChart} data=${rows} margin=${{ top: 10, right: 12, left: -6, bottom: 0 }}>
+          <${CartesianGrid} vertical=${false} stroke=${ink} strokeOpacity=${.12} />
+          <${XAxis} dataKey=${dataKey} ticks=${ticks} tickFormatter=${fmt} interval=${0} tick=${tickStyle} axisLine=${false} tickLine=${false} />
+          <${YAxis} width=${44} allowDecimals=${false} tick=${tickStyle} axisLine=${false} tickLine=${false} tickFormatter=${v => v + " kt"} domain=${[0, "dataMax + 4"]} />
+          <${Tooltip} content=${tipBox} cursor=${{ stroke: ink, strokeOpacity: .25 }} isAnimationActive=${false} />
+          ${limit ? html`<${ReferenceLine} y=${limit} stroke="#DC2626" strokeDasharray="5 4" label=${{ value: "Your crosswind limit", position: "insideTopRight", fill: "#DC2626", fontSize: 12 }} />` : null}
+          ${series.map(s => html`<${Line} key=${s.key} type=${s.step ? "stepAfter" : "monotone"} dataKey=${s.key} stroke=${s.color} strokeWidth=${s.w || 2} strokeDasharray=${s.dash || null} dot=${false} connectNulls=${false} isAnimationActive=${false} />`)}
+        </${ComposedChart}>
+      </${ResponsiveContainer}>`;
+  }
+  function CloudChart({ rows, ticks, fmt, ink }) {
+    const tickStyle = { fontSize: 12, fill: ink, fillOpacity: .72 };
+    return html`
+      <${ResponsiveContainer} width="100%" height=${220}>
+        <${ComposedChart} data=${rows} margin=${{ top: 10, right: 12, left: -2, bottom: 0 }}>
+          <${CartesianGrid} vertical=${false} stroke=${ink} strokeOpacity=${.12} />
+          <${XAxis} dataKey="t" ticks=${ticks} tickFormatter=${fmt} interval=${0} tick=${tickStyle} axisLine=${false} tickLine=${false} />
+          <${YAxis} yAxisId="ft" width=${54} domain=${[0, 8000]} ticks=${[0, 1000, 3000, 5000, 8000]} tick=${tickStyle} axisLine=${false} tickLine=${false} tickFormatter=${v => v ? (v / 1000) + "k ft" : "0"} />
+          <${YAxis} yAxisId="pct" orientation="right" domain=${[0, 100]} hide=${true} />
+          <${Tooltip} content=${tipBox} cursor=${{ stroke: ink, strokeOpacity: .25 }} isAnimationActive=${false} />
+          <${ReferenceLine} yAxisId="ft" y=${3000} stroke=${CAT.MVFR} strokeDasharray="4 4" label=${{ value: "MVFR below 3,000", position: "insideTopLeft", fill: CAT.MVFR, fontSize: 11 }} />
+          <${ReferenceLine} yAxisId="ft" y=${1000} stroke=${CAT.IFR} strokeDasharray="4 4" label=${{ value: "IFR below 1,000", position: "insideTopLeft", fill: CAT.IFR, fontSize: 11 }} />
+          <${Bar} yAxisId="pct" dataKey="low" fill=${ink} fillOpacity=${.14} isAnimationActive=${false} />
+          <${Line} yAxisId="ft" type="monotone" dataKey="ceilPlot" stroke=${ink} strokeWidth=${2.5} dot=${false} connectNulls=${false} isAnimationActive=${false} />
+        </${ComposedChart}>
+      </${ResponsiveContainer}>`;
+  }
+  function CatLegend() {
+    return html`<div className="legend">${Object.keys(CAT).map(c => html`<span key=${c}><span className="sw" style=${{ background: CAT[c] }}></span>${c}</span>`)}</div>`;
+  }
+  const Chip = ({ cat }) => cat ? html`<span className="chip" style=${{ background: CAT[cat] }}>${cat}</span>` : html`<span className="chip none">n/a</span>`;
+
+  /* ---------- bluebird ---------- */
+  const BLUE = "#3B7DD8", WING = "#2C63B5", WING_D = "#1E4C91", BREAST = "#E8894A", BELLY = "#FFF3E6", LEATHER = "#7A4E2D", SCARF = "#F6F1E4";
+  function Bird({ pose, lines }) {
+    const [arriving, setArriving] = useState(true);
+    useEffect(() => { const t = setTimeout(() => setArriving(false), 1150); return () => clearTimeout(t); }, []);
+    return html`
+      <div className=${"bird-wrap" + (arriving ? " arriving" : "")}>
+        <div className="bubble" role="status">${lines.map((l, i) => html`<p key=${i}>${l}</p>`)}</div>
+        <svg viewBox="0 0 160 160" className=${`bird-svg pose-${pose}${arriving ? " arrive" : ""}`} aria-hidden="true">
+          <ellipse className="shadow" cx="80" cy="154" rx="26" ry="4" fill="#000" opacity=".15" />
+          <g className="branch">
+            <path d="M6 140 Q80 130 156 142" stroke="#7A5230" strokeWidth="7" fill="none" strokeLinecap="round" />
+            <path d="M128 139 Q138 124 152 127 Q145 138 128 139 Z" fill="#5E9E4A" />
+            <path d="M24 137 Q20 128 12 126 Q16 136 24 137 Z" fill="#6DAE56" />
+          </g>
+          <g className="wind-lines"><path d="M2 60 Q18 54 34 60" /><path d="M0 92 Q16 86 30 92" /><path d="M4 122 Q20 116 36 122" /></g>
+          <g className="cloud">
+            <g className="cloud-puff">
+              <ellipse cx="80" cy="8" rx="30" ry="9" fill="#9AA7B4" />
+              <circle cx="66" cy="2" r="10" fill="#9AA7B4" /><circle cx="82" cy="-4" r="13" fill="#A7B3BF" /><circle cx="97" cy="2" r="9" fill="#9AA7B4" />
+            </g>
+            <g>
+              <line className="drop" x1="68" y1="18" x2="66" y2="24" stroke="#6FA8DC" strokeWidth="2.5" strokeLinecap="round" />
+              <line className="drop" x1="82" y1="18" x2="80" y2="24" stroke="#6FA8DC" strokeWidth="2.5" strokeLinecap="round" />
+              <line className="drop" x1="95" y1="18" x2="93" y2="24" stroke="#6FA8DC" strokeWidth="2.5" strokeLinecap="round" />
+            </g>
+          </g>
+          <g className="body">
+            <path d="M104 112 L136 126 L127 116 L140 113 L112 100 Z" fill=${WING} />
+            <g className="feet">
+              <path d="M72 124 L70 137 M70 137 L64 140 M70 137 L71 141 M70 137 L76 140 M88 124 L90 137 M90 137 L84 140 M90 137 L91 141 M90 137 L96 140" stroke="#6B5A4E" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+            </g>
+            <g className="wingL">
+              <path d="M58 86 Q26 88 30 116 Q48 114 62 100 Z" fill=${WING} />
+              <path d="M36 104 Q46 102 54 96 M34 110 Q44 108 52 102" stroke=${WING_D} strokeWidth="1.5" fill="none" />
+            </g>
+            <ellipse cx="80" cy="96" rx="34" ry="30" fill=${BLUE} />
+            <ellipse cx="80" cy="104" rx="25" ry="22" fill=${BREAST} />
+            <ellipse cx="80" cy="116" rx="16" ry="10.5" fill=${BELLY} />
+            <g className="wingR">
+              <path d="M102 86 Q134 88 130 116 Q112 114 98 100 Z" fill=${WING} />
+              <path d="M124 104 Q114 102 106 96 M126 110 Q116 108 108 102" stroke=${WING_D} strokeWidth="1.5" fill="none" />
+            </g>
+            <g className="scarf">
+              <g className="scarf-tail">
+                <path d="M98 86 Q116 84 134 97 Q121 97 115 106 Q108 95 97 93 Z" fill=${SCARF} />
+                <path d="M122 92 Q126 95 129 97" stroke="#D14A3A" strokeWidth="1.5" fill="none" />
+              </g>
+              <path d="M58 80 Q80 92 102 80 L103 87 Q80 99 57 87 Z" fill=${SCARF} />
+              <path d="M59 85 Q80 96 101 85" stroke="#D14A3A" strokeWidth="1.5" fill="none" />
+            </g>
+            <g className="head">
+              <circle cx="80" cy="58" r="27" fill=${BLUE} />
+              <circle cx="63" cy="68" r="5" fill="#F4A6A0" opacity=".45" />
+              <circle cx="97" cy="68" r="5" fill="#F4A6A0" opacity=".45" />
+              <g className="eyes-open">
+                <circle cx="70" cy="58" r="6.5" fill="#fff" /><circle cx="90" cy="58" r="6.5" fill="#fff" />
+                <circle cx="71" cy="59" r="3.8" fill="#1B1B1B" /><circle cx="91" cy="59" r="3.8" fill="#1B1B1B" />
+                <circle cx="72.4" cy="57.4" r="1.3" fill="#fff" /><circle cx="92.4" cy="57.4" r="1.3" fill="#fff" />
+              </g>
+              <g className="eyes-closed">
+                <path d="M64 59 Q70 63 76 59 M84 59 Q90 63 96 59" stroke="#1B1B1B" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+              </g>
+              <path d="M74 67 L86 67 L80 76 Z" fill="#3A3530" />
+              <path d="M75.5 69 L84.5 69" stroke="#5A524A" strokeWidth=".8" />
+              <path d="M54 54 Q54 29 80 29 Q106 29 106 54 Q96 42 80 42 Q64 42 54 54 Z" fill=${LEATHER} />
+              <path d="M80 29 L80 42" stroke="#5E3A20" strokeWidth="1.2" />
+              <path d="M54 52 Q49 64 56 73 Q61 66 60 56 Z" fill=${LEATHER} />
+              <path d="M106 52 Q111 64 104 73 Q99 66 100 56 Z" fill=${LEATHER} />
+              <g className="goggles">
+                <path d="M53 46 Q80 37 107 46" stroke="#3E2A1A" strokeWidth="3" fill="none" />
+                <circle cx="70" cy="42" r="7.5" fill="#BFE6F7" stroke="#8A6A3E" strokeWidth="2.5" />
+                <circle cx="90" cy="42" r="7.5" fill="#BFE6F7" stroke="#8A6A3E" strokeWidth="2.5" />
+                <path d="M77.5 42 L82.5 42" stroke="#8A6A3E" strokeWidth="2.5" />
+                <path d="M66 39 Q68 37 71 37 M86 39 Q88 37 91 37" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              </g>
+            </g>
+          </g>
+          <g className="zzz"><text x="108" y="30" fontSize="10">z</text><text x="118" y="18" fontSize="13">z</text><text x="129" y="4" fontSize="16">Z</text></g>
+        </svg>
+      </div>`;
+  }
+  function Contrails() {
+    return html`
+      <svg className="contrails" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
+        <path pathLength="1" vectorEffect="non-scaling-stroke" d="M-40 150 C 250 110, 600 70, 1040 40" />
+        <path pathLength="1" vectorEffect="non-scaling-stroke" style=${{ animationDelay: ".08s" }} d="M-40 160 C 250 120, 600 80, 1040 50" />
+        <path pathLength="1" vectorEffect="non-scaling-stroke" style=${{ animationDelay: ".45s" }} d="M1040 300 C 760 250, 420 260, -40 200" />
+      </svg>`;
+  }
+
+  /* ---------- app ---------- */
+  const EXAMPLES = ["KSCH", "KELM", "Saratoga Springs, NY", "KDEN", "Oshkosh, WI"];
+
+  function App() {
+    const [q, setQ] = useState(store.get("fx:q") || "");
+    const [rwyText, setRwyText] = useState("");
+    const [limit, setLimit] = useState(store.get("fx:xwl") || "");
+    const [busy, setBusy] = useState(false);
+    const [status, setStatus] = useState("");
+    const [error, setError] = useState(!IS_APP && location.protocol === "file:" ? FILE_MSG : "");
+    const [data, setData] = useState(null);
+    const [loadId, setLoadId] = useState(0);
+
+    async function search(text) {
+      const t = (text ?? q).trim();
+      if (t.length < 3) { setError("Enter an airport code like KSCH, or a city and state like Saratoga Springs, NY."); return; }
+      if (!IS_APP && location.protocol === "file:") { setError(FILE_MSG); return; }
+      setBusy(true); setError(""); store.set("fx:q", t);
+      try {
+        let airport = null, place = null;
+        const looksLikeCode = /^[A-Za-z0-9]{3,4}$/.test(t);
+        if (looksLikeCode) { setStatus("Looking up the airport…"); airport = await findAirport(t); }
+        if (!airport) {
+          setStatus("Finding the place…");
+          place = await geocodePlace(t).catch(() => null);
+          if (!place) throw new UserError(`No airport or city matched “${t}”. Try an ICAO code like KSCH, or “City, ST”.`);
+          setStatus("Finding the nearest airport that reports weather…");
+          const n = await nearest("metar", place.lat, place.lon, 0.8);
+          if (n) airport = (await findAirport(n.item.icaoId).catch(() => null)) || { icaoId: n.item.icaoId, name: n.item.name, lat: n.item.lat, lon: n.item.lon, elev: n.item.elev };
+        }
+        const lat = airport ? +airport.lat : place.lat, lon = airport ? +airport.lon : place.lon;
+        const id = airport ? String(airport.icaoId || airport.id || airport.faaId || "").toUpperCase() : null;
+        setStatus("Getting the METAR, TAF and 7-day outlook…");
+        const [metars, tafs, om] = await Promise.all([
+          id ? soft(awc("metar", { ids: id, hours: 3 })) : [],
+          id ? soft(awc("taf", { ids: id })) : [],
+          orNull(fetchOutlook(lat, lon))
+        ]);
+        let metar = metars.filter(m => m && m.rawOb).sort((a, b) => (toMs(b.obsTime) || 0) - (toMs(a.obsTime) || 0))[0] || null, metarDist = 0;
+        if (!metar) { const n = await nearest("metar", lat, lon, 0.8); if (n) { metar = n.item; metarDist = n.dist; } }
+        let taf = tafs[0] || null, tafDist = 0;
+        if (!taf) { setStatus("No TAF here, looking for the nearest one…"); const n = await nearest("taf", lat, lon, 1.5); if (n) { taf = n.item; tafDist = n.dist; } }
+        setStatus("Checking advisories and pilot reports…");
+        const [sig, gair, pireps] = await Promise.all([
+          orNull(awc("airsigmet", {})), orNull(awc("gairmet", {})),
+          id ? orNull(awc("pirep", { id, distance: 60, age: 3 })) : null
+        ]);
+        if (!data || data.id !== id) setRwyText("");
+        setData({ query: t, airport, place, id, lat, lon, metar, metarDist, taf, tafDist, om, sig, gair, pireps, fetched: Date.now() });
+        setLoadId(n => n + 1);
+      } catch (e) {
+        setError(e.user || e.server ? e.message : NET_MSG);
+      } finally { setBusy(false); setStatus(""); }
+    }
+    useEffect(() => { if (q && (IS_APP || location.protocol !== "file:")) search(q); }, []);
+
+    /* derive */
+    const limitNum = num(limit) && +limit > 0 ? +limit : null;
+    let v = null;
+    if (data) {
+      const a = data.airport || {};
+      const elevM = num(a.elev) ?? (data.metar ? num(data.metar.elev) : null);
+      const elevFt = elevM != null ? elevM * 3.281 : null;
+      const ends = rwyText.trim() ? endsFromText(rwyText) : endsFromIds((a.runways || []).map(r => r.id || r.runway || ""));
+      const outlook = decodeOutlook(data.om, ends);
+      const tz = outlook ? outlook.tz : "UTC";
+      v = {
+        a, elevFt, ends, tz, outlook,
+        metar: decodeMetar(data.metar, ends, data.metarDist ? null : elevFt),
+        taf: decodeTaf(data.taf, ends),
+        adv: decodeAdvisories(data.sig, data.gair, data.lat, data.lon),
+        pireps: (data.pireps || []).filter(p => p && p.rawOb).sort((x, y) => (toMs(y.obsTime) || 0) - (toMs(x.obsTime) || 0)).slice(0, 8),
+        isDay: outlook ? outlook.isDay : true
+      };
+    }
+
+    /* mood + bird */
+    let mood = "idle", pose = "perch", lines = ["Tell me where you're flying and I'll check the sky for you."];
+    if (v) {
+      const m = v.metar, cat = m ? m.cat : (v.outlook && v.outlook.rows[0] ? v.outlook.rows[0].cat : null);
+      const windy = m && ((m.wspd || 0) >= 20 || (m.wgst || 0) >= 25 || (limitNum && xwPeak(m.xw) > limitNum));
+      mood = m && /TS/.test(m.wx) ? "storm" : !v.isDay ? "night" : cat === "VFR" ? "clear" : cat === "MVFR" ? "cloud" : cat ? "rain" : "cloud";
+      const id = data.id || (m && m.id) || "there";
+      if (!v.isDay) { pose = "sleep"; lines = [`It's night at ${id}. I'm roosting until first light.`]; }
+      else if (windy) { pose = "windy"; lines = ["It's gusty out there! Mind the crosswind on landing."]; }
+      else if (cat === "IFR" || cat === "LIFR") { pose = "grounded"; lines = [`${cat} conditions. My feet are staying on the branch.`]; }
+      else if (cat === "MVFR") { pose = "perch"; lines = ["Marginal VFR. Keep an eye on those ceilings."]; }
+      else { pose = "fly"; lines = ["Blue sky and light winds. Good day to stretch your wings."]; }
+      if (v.taf && v.taf.worst) lines.push(`${v.taf.id} TAF, next 24 hours: worst case ${v.taf.worst}${v.taf.worstAt ? ` around ${zHM(v.taf.worstAt)}` : ""}.`);
+      else lines.push("No TAF nearby, so lean on the 7-day outlook.");
+    }
+    useEffect(() => { document.body.dataset.mood = mood; }, [mood]);
+    const ink = mood === "night" || mood === "storm" ? "#EAF0FF" : "#13212E";
+
+    return html`<${React.Fragment}>
+      ${loadId > 0 && html`<${Contrails} key=${"c" + loadId} />`}
+      <main className="wrap">
+        <div className="search" role="search">
+          <label className="sr" htmlFor="q">Destination airport code or city and state</label>
+          <input id="q" className="q" value=${q} onChange=${e => setQ(e.target.value)} onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); search(); } }} placeholder="Where are you flying? KSCH, SCH, or Schenectady, NY" autoComplete="off" autoFocus />
+          <button className="go" type="button" onClick=${() => search()} disabled=${busy}>${busy ? "Checking…" : "Get forecast"}</button>
+        </div>
+        <div className="settings">
+          <label>Runways <input className="small-in" value=${rwyText} onChange=${e => setRwyText(e.target.value)} placeholder=${v && v.ends.length && !rwyText ? v.ends.map(e => e.name).join(" ") : "e.g. 04/22, 10/28"} /></label>
+          <label>Your crosswind limit <input className="small-in num" inputMode="numeric" value=${limit} onChange=${e => { setLimit(e.target.value); store.set("fx:xwl", e.target.value); }} placeholder="kt" /> kt</label>
+          <span className="muted">Leave runways blank to use the airport's own.</span>
+        </div>
+
+        <div className="disclaimer glass">For planning only. This is not an official weather briefing. Before you fly, get a standard briefing from <a href="https://www.1800wxbrief.com" target="_blank" rel="noopener">1800wxbrief.com</a> or call 1-800-WX-BRIEF.</div>
+
+        <div aria-live="polite">
+          ${status && html`<div className="status">${status}</div>`}
+          ${error && html`<div className="error glass">${error}</div>`}
+        </div>
+
+        ${!data && !error && html`
+          <div className="empty">
+            <p className="lead">Where are we flying tomorrow?</p>
+            <p>Enter a destination airport code, or a city and state. You'll get the latest METAR, the TAF decoded hour by hour, advisories and pilot reports nearby, and a 7-day outlook with crosswinds for the runways there.</p>
+            <div className="chips">${EXAMPLES.map(ex => html`<button key=${ex} type="button" className="ex" onClick=${() => { setQ(ex); search(ex); }}>${ex}</button>`)}</div>
+          </div>`}
+
+        ${v && html`<${Results} data=${data} v=${v} ink=${ink} limit=${limitNum} />`}
+
+        <p className="credit">Aviation data from the <a href="https://aviationweather.gov" target="_blank" rel="noopener">NOAA Aviation Weather Center</a>. Outlook and place search from <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>.</p>
+      </main>
+      <${Bird} key=${"b" + loadId + pose} pose=${pose} lines=${lines} />
+    </${React.Fragment}>`;
+  }
+
+  function Results({ data, v, ink, limit }) {
+    const { a, metar: m, taf, outlook, adv, tz } = v;
+    const name = a.name ? String(a.name).replace(/\b([A-Z])([A-Z]+)\b/g, (s, x, y) => x + y.toLowerCase()) : (m && m.name) || "";
+    const overLimit = x => limit && xwPeak(x) > limit;
+    const title = [data.id, name].filter(Boolean).join(", ");
+    const place = data.place ? `Nearest reporting airport to ${data.place.label}. ` : "";
+
+    return html`
+      <div className="station">
+        <h1>${title || (data.place && data.place.label)}</h1>
+        <div className="sub">${place}${[a.state, a.country].filter(Boolean).join(", ")}${v.elevFt != null ? `. Field elevation about ${fmtInt(v.elevFt)} ft` : ""}${v.ends.length ? `. Runways ${[...new Set(v.ends.map(e => e.name))].join(", ")}` : ". No runway data, add yours above for crosswinds"}.</div>
+      </div>
+
+      ${m ? html`
+        <div className="now">
+          <div className="cat-tile" style=${{ background: m.cat ? CAT[m.cat] : "#64748B" }}>
+            <div className="big">${m.cat || "n/a"}</div>
+            <div className="cap">${m.id} now${data.metarDist ? `, ${rnd(data.metarDist)} nm away` : ""}. Observed ${zHM(m.obs)} (${loc(m.obs, tz)} local), ${Math.max(0, Math.round((Date.now() - m.obs) / 60000))} min ago</div>
+          </div>
+          <div className="stats">
+            <div className="stat"><div className="k">Wind</div><div className=${"v" + ((m.wgst || 0) >= 25 ? " warn" : "")}>${fmtWind(m.wdir, m.wspd, m.wgst)}</div></div>
+            <div className="stat"><div className="k">Crosswind</div><div className=${"v" + (overLimit(m.xw) ? " warn" : "")}>${xwText(m.xw)}</div></div>
+            <div className="stat"><div className="k">Visibility</div><div className="v">${fmtVis(m.vis)}</div></div>
+            <div className="stat"><div className="k">Ceiling</div><div className="v">${m.ceil != null ? fmtInt(m.ceil) + " ft AGL" : "None"}</div></div>
+            <div className="stat"><div className="k">Clouds</div><div className="v">${fmtClouds(m.clouds)}</div></div>
+            <div className="stat"><div className="k">Temp / dew point</div><div className="v">${m.temp != null ? `${rnd(m.temp)}° / ${rnd(m.dewp)}° C` : "n/a"}</div></div>
+            <div className="stat"><div className="k">Altimeter</div><div className="v">${m.alt != null ? m.alt.toFixed(2) + " inHg" : "n/a"}</div></div>
+            <div className="stat"><div className="k">Density altitude</div><div className=${"v" + (m.da != null && v.elevFt != null && m.da - v.elevFt > 2000 ? " warn" : "")}>${m.da != null ? fmtInt(Math.round(m.da / 100) * 100) + " ft" : "n/a"}</div></div>
+            ${m.wx && html`<div className="stat"><div className="k">Weather</div><div className="v">${m.wx}</div></div>`}
+          </div>
+        </div>
+        <div className="raw glass">${m.raw}</div>
+      ` : html`<div className="error glass">No recent METAR within about 50 nm of this spot.</div>`}
+
+      <section className="panel">
+        <h2>TAF, next 24 to 30 hours</h2>
+        ${taf ? html`
+          <p className="lede">${taf.id}${data.tafDist ? `, the nearest TAF, ${rnd(data.tafDist)} nm away` : ""}. Issued ${zDH(taf.issued)}, valid ${zDH(taf.from)} to ${zDH(taf.to)}. Times are Zulu. Hover the strips for details.</p>
+          <div className="raw glass">${prettyTaf(taf.raw)}</div>
+          <${TafCharts} taf=${taf} ink=${ink} limit=${limit} tz=${tz} hasXw=${v.ends.length > 0} />
+          <h3>Forecast periods</h3>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Period</th><th>From</th><th>To</th><th>Category</th><th>Wind</th><th>Crosswind</th><th>Visibility</th><th>Weather</th><th>Clouds</th></tr></thead>
+              <tbody>
+                ${taf.periods.map((p, i) => html`
+                  <tr key=${i} className=${p.overlay ? "overlay" : ""}>
+                    <td><strong>${p.label}</strong></td>
+                    <td>${zDH(p.from)}<br /><span className="muted">${loc(p.from, tz, true)}</span></td>
+                    <td>${p.to ? zDH(p.to) : ""}</td>
+                    <td><${Chip} cat=${p.cat} /></td>
+                    <td className="mono">${fmtWind(p.st.wdir, p.st.wspd, p.st.wgst)}</td>
+                    <td>${overLimit(p.xw) ? html`<span className="warn">${xwText(p.xw)}</span>` : xwText(p.xw)}</td>
+                    <td>${fmtVis(p.st.visib)}</td>
+                    <td className="mono">${p.st.wx || ""}</td>
+                    <td className="mono">${fmtClouds(p.st.clouds)}</td>
+                  </tr>`)}
+              </tbody>
+            </table>
+          </div>
+        ` : html`<p className="lede">No TAF within about 100 nm. Use the outlook below and the official briefing.</p>`}
+      </section>
+
+      <section className="panel">
+        <h2>Advisories and pilot reports</h2>
+        <p className="lede">SIGMETs and G-AIRMETs whose area covers ${data.id || "this spot"}, and PIREPs within 60 nm over the last 3 hours.</p>
+        ${data.sig == null && data.gair == null ? html`<div className="adv glass">Couldn't load advisories this time.</div>` : null}
+        ${adv.sigs.length === 0 && adv.gairs.length === 0 && (data.sig != null || data.gair != null) ? html`<div className="adv glass">No SIGMETs or G-AIRMETs cover this point right now.</div>` : null}
+        ${adv.sigs.map((s, i) => html`
+          <div key=${"s" + i} className="adv glass">
+            <div className="t">${s.title}</div>
+            <div className="muted">Valid ${s.valid[0] ? zDH(s.valid[0]) : "?"} to ${s.valid[1] ? zDH(s.valid[1]) : "?"}${s.alt[0] != null || s.alt[1] != null ? `. ${s.alt[0] != null ? fmtInt(s.alt[0]) + " ft" : "SFC"} to ${s.alt[1] != null ? fmtInt(s.alt[1]) + " ft" : "?"}` : ""}</div>
+            ${s.raw && html`<details><summary>Full text</summary><div className="raw">${s.raw}</div></details>`}
+          </div>`)}
+        ${adv.gairs.map((g, i) => html`
+          <div key=${"g" + i} className="adv glass">
+            <div className="t">${g.title}</div>
+            <div className="muted">Snapshots at ${g.times.length ? g.times.map(zDH).join(", ") : "current time"}${g.due ? `. Due to ${g.due}` : ""}${g.base != null || g.top != null ? `. ${g.base ?? "SFC"} to ${g.top ?? "?"}` : ""}</div>
+          </div>`)}
+        <h3>Pilot reports</h3>
+        ${data.pireps == null ? html`<div className="adv glass">Couldn't load pilot reports this time.</div>`
+          : v.pireps.length ? html`<div className="adv glass" style=${{ padding: 0 }}>${v.pireps.map((p, i) => html`<div key=${i} className="pirep">${/\bUUA\b/.test(p.rawOb) ? html`<span className="uua">Urgent</span>` : null}${p.rawOb}</div>`)}</div>`
+          : html`<div className="adv glass">No PIREPs within 60 nm in the last 3 hours.</div>`}
+      </section>
+
+      <section className="panel">
+        <h2>7-day outlook</h2>
+        <p className="lede">A weather-model estimate, not a TAF. Ceilings are guessed from low cloud cover and the temperature and dew point spread, so treat categories as a rough guide for picking days. Times are local (${tz}).</p>
+        ${outlook ? html`<${Outlook} o=${outlook} ink=${ink} limit=${limit} hasXw=${v.ends.length > 0} />` : html`<div className="adv glass">Couldn't load the outlook this time.</div>`}
+      </section>`;
+  }
+
+  function TafCharts({ taf, ink, limit, tz, hasXw }) {
+    const tipFor = (label, st, cat, x) => `${label}\n${cat || "n/a"}: ${fmtWind(st.wdir, st.wspd, st.wgst)}, ${fmtVis(st.visib)}\n${fmtClouds(st.clouds)}${st.wx ? "\n" + st.wx : ""}${x ? "\nCrosswind " + xwText(x) : ""}`;
+    const rows = taf.hours.map(h => ({ k: h.k, one: 1, cat: h.cat, tip: tipFor(`${zDH(h.ms)} (${loc(h.ms, tz, true)} local)`, h.st, h.cat, h.xw) }));
+    const orows = taf.hours.map(h => ({ k: h.k, one: 1, cat: h.over ? h.over.cat : null, tip: h.over ? tipFor(`${h.over.label}, ${zDH(h.ms)}`, h.over.st, h.over.cat, h.oxw) : `${zDH(h.ms)}\nNo TEMPO or PROB group` }));
+    const ticks = taf.hours.filter(h => new Date(h.ms).getUTCHours() % 3 === 0).map(h => h.k);
+    const fmt = k => k.slice(2) + "Z";
+    const wrows = taf.hours.map(h => ({
+      k: h.k, wind: h.st.wspd ?? null, gust: h.st.wgst ?? null, xw: h.xw ? rnd(xwPeak(h.xw)) : null, tgust: h.over && h.over.st.wgst != null ? h.over.st.wgst : null,
+      tip: `${zDH(h.ms)}\nWind ${fmtWind(h.st.wdir, h.st.wspd, h.st.wgst)}${h.xw ? "\nCrosswind " + xwText(h.xw) : ""}${h.over && h.over.st.wgst ? `\n${h.over.label} gusts ${h.over.st.wgst} kt` : ""}`
+    }));
+    const series = [
+      { key: "wind", color: ink, step: true, w: 2.5 },
+      { key: "gust", color: ink, step: true, dash: "5 4" },
+      { key: "tgust", color: "#8B5CF6", step: true, dash: "2 3" },
+      ...(hasXw ? [{ key: "xw", color: "#EA580C", step: true, w: 2.5 }] : [])
+    ];
+    return html`
+      <div className="chart"><div className="chart-inner">
+        <div className="strip-label">Prevailing conditions</div>
+        <${CatStrip} rows=${rows} dataKey="k" ticks=${ticks} fmt=${fmt} />
+        <div className="strip-label">TEMPO and PROB groups</div>
+        <${CatStrip} rows=${orows} dataKey="k" ticks=${ticks} fmt=${fmt} height=${16} />
+        <${CatLegend} />
+        <h3>Wind</h3>
+        <${WindChart} rows=${wrows} dataKey="k" ticks=${ticks} fmt=${fmt} ink=${ink} limit=${limit} series=${series} />
+        <div className="legend">
+          <span><span className="sw" style=${{ background: ink }}></span>Wind</span>
+          <span><span className="sw" style=${{ background: ink, opacity: .5 }}></span>Gusts (dashed)</span>
+          <span><span className="sw" style=${{ background: "#8B5CF6" }}></span>TEMPO or PROB gusts</span>
+          ${hasXw && html`<span><span className="sw" style=${{ background: "#EA580C" }}></span>Crosswind, best runway, gusts included</span>`}
+        </div>
+      </div></div>`;
+  }
+
+  function Outlook({ o, ink, limit, hasXw }) {
+    const tomorrow = (() => { const d = new Date(o.rows[0] ? Date.parse(o.rows[0].day + "T12:00:00Z") + 864e5 : Date.now()); return d.toISOString().slice(0, 10); })();
+    const dayName = d => new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+    const ticks = o.rows.filter(r => r.hour === 12).map(r => r.t);
+    const fmt = t => new Date(t.slice(0, 10) + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+    const hl = r => `${new Date(r.day + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${hour12(r.hour)}${r.isDay ? "" : ", night"}`;
+    const rows = o.rows.map(r => ({
+      ...r, one: 1, dim: !r.isDay, ceilPlot: r.ceil != null ? Math.min(r.ceil, 8000) : 8000,
+      xwPeak: r.xw != null ? Math.max(r.xw, r.xwg || 0) : null,
+      tip: `${hl(r)}\nEstimated ${r.cat || "n/a"}${r.ceil != null && r.ceil < 8000 ? `, ceiling about ${fmtInt(r.ceil)} ft` : ", no low ceiling"}\nVisibility ${r.vis != null ? (r.vis > 6 ? "6+" : r.vis.toFixed(1)) + " SM" : "n/a"}, low cloud ${r.low ?? "?"}%\nWind ${r.dir != null ? String(Math.round(r.dir / 10) * 10).padStart(3, "0") + "°" : ""} ${r.wind ?? "?"}${r.gust ? "G" + r.gust : ""} kt${r.xwo ? "\nCrosswind " + xwText(r.xwo) : ""}\nAbout 5,000 ft wind ${r.w850 ?? "?"} kt\nRain chance ${r.pop ?? "?"}%${r.frz != null ? `, freezing level ${fmtInt(r.frz)} ft` : ""}`
+    }));
+    const series = [
+      { key: "wind", color: ink, w: 2 },
+      { key: "gust", color: ink, dash: "5 4", w: 1.5 },
+      { key: "w850", color: "#8B5CF6", w: 1.5 },
+      ...(hasXw ? [{ key: "xwPeak", color: "#EA580C", w: 2 }] : [])
+    ];
+    return html`
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Day</th><th>Daytime outlook</th><th>VFR hours</th><th>Best VFR window</th><th>Peak wind</th><th>Peak crosswind</th><th>Rain chance</th><th>Freezing level</th><th>Thunder</th></tr></thead>
+          <tbody>
+            ${o.days.map(d => html`
+              <tr key=${d.day} className=${d.day === tomorrow ? "tomorrow" : ""}>
+                <td>${d.day === tomorrow ? "Tomorrow, " : ""}${dayName(d.day)}</td>
+                <td><${Chip} cat=${d.worst} /></td>
+                <td>${d.vfr} of ${d.n}</td>
+                <td>${d.window || "None"}</td>
+                <td>${d.maxG} kt</td>
+                <td>${d.maxX == null ? "n/a" : (limit && d.maxX > limit ? html`<span className="warn">${d.maxX} kt</span>` : `${d.maxX} kt`)}</td>
+                <td>${d.maxPop}%</td>
+                <td>${d.minFrz != null ? fmtInt(d.minFrz) + " ft" : "n/a"}</td>
+                <td>${d.ts ? html`<span className="warn">Possible</span>` : "Unlikely"}</td>
+              </tr>`)}
+          </tbody>
+        </table>
+      </div>
+      <div className="chart"><div className="chart-inner">
+        <h3>Estimated flight category, hour by hour</h3>
+        <${CatStrip} rows=${rows} dataKey="t" ticks=${ticks} fmt=${fmt} />
+        <div className="legend">${Object.keys(CAT).map(c => html`<span key=${c}><span className="sw" style=${{ background: CAT[c] }}></span>${c}</span>`)}<span className="muted">Faded hours are at night.</span></div>
+        <h3>Wind</h3>
+        <${WindChart} rows=${rows} dataKey="t" ticks=${ticks} fmt=${fmt} ink=${ink} limit=${limit} series=${series} />
+        <div className="legend">
+          <span><span className="sw" style=${{ background: ink }}></span>Surface wind</span>
+          <span><span className="sw" style=${{ background: ink, opacity: .5 }}></span>Gusts (dashed)</span>
+          <span><span className="sw" style=${{ background: "#8B5CF6" }}></span>Wind near 5,000 ft</span>
+          ${hasXw && html`<span><span className="sw" style=${{ background: "#EA580C" }}></span>Crosswind, best runway, gusts included</span>`}
+        </div>
+        <h3>Estimated ceiling</h3>
+        <${CloudChart} rows=${rows} ticks=${ticks} fmt=${fmt} ink=${ink} />
+        <div className="legend"><span><span className="sw" style=${{ background: ink }}></span>Estimated ceiling (top of chart means no low ceiling)</span><span><span className="sw" style=${{ background: ink, opacity: .25 }}></span>Low cloud cover %</span></div>
+      </div></div>`;
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(html`<${App} />`);
+})();
+</script>
+</body>
+</html>

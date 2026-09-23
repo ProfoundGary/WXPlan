@@ -1,0 +1,19 @@
+{
+  "name": "flight-weather-planner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Flight weather planner for Android: METAR, decoded TAF, advisories, PIREPs and a 7-day outlook, with a bluebird co-pilot.",
+  "scripts": {
+    "add-android": "cap add android",
+    "icons": "capacitor-assets generate --android",
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "8.5.2"
+  }
+}
