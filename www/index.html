@@ -123,7 +123,8 @@
   .bubble { background: var(--glass); border: 1px solid var(--line); border-radius: 14px 14px 4px 14px; padding: 8px 12px; font-size: 13px; line-height: 1.35; max-width: 230px; margin-bottom: 2px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); opacity: 0; visibility: hidden; transform: translateY(6px); transition: opacity .35s ease, transform .35s ease, visibility 0s linear .35s; }
   .bubble.show { opacity: 1; visibility: visible; transform: none; transition: opacity .35s ease, transform .35s ease, visibility 0s; }
   .bird-svg { pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .tip-mobile { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 14px); transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); z-index: 50; pointer-events: none; font-size: 14px; box-shadow: 0 8px 28px rgba(0,0,0,.22); }
+  .tip-mobile { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); transform: translateX(-50%); width: max-content; min-width: 200px; max-width: calc(100vw - 32px); z-index: 50; pointer-events: auto; font-size: 14px; padding: 12px 44px 12px 14px; box-shadow: 0 8px 28px rgba(0,0,0,.25); }
+  .tip-close { position: absolute; top: 4px; right: 4px; width: 36px; height: 36px; border: 0; border-radius: 10px; background: rgba(19,33,46,.08); color: #13212E; font: 600 20px/1 "Figtree", sans-serif; cursor: pointer; }
   .bubble p { margin: 0; }
   .bubble p + p { margin-top: 4px; opacity: .85; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -546,10 +547,43 @@
 
   /* ---------- charts ---------- */
   const narrow = () => window.matchMedia && window.matchMedia("(max-width: 700px)").matches;
+  // On phones the details card sits at the bottom of the screen and clears itself:
+  // tap the close button, tap anywhere outside a chart, scroll the page, or wait 8 seconds.
+  function MobileTip({ text }) {
+    const [hidden, setHidden] = useState(false);
+    const [nonce, setNonce] = useState(0);
+    useEffect(() => {
+      setHidden(false);
+      const t = setTimeout(() => setHidden(true), 8000);
+      return () => clearTimeout(t);
+    }, [text, nonce]);
+    useEffect(() => {
+      const onTouch = e => {
+        const el = e.target && e.target.closest ? e.target : null;
+        if (el && el.closest(".tip-mobile")) return;
+        if (el && el.closest(".recharts-wrapper")) setNonce(n => n + 1); else setHidden(true);
+      };
+      const onScroll = () => setHidden(true);
+      document.addEventListener("touchstart", onTouch, { passive: true });
+      document.addEventListener("mousedown", onTouch);
+      window.addEventListener("scroll", onScroll, { passive: true });
+      return () => {
+        document.removeEventListener("touchstart", onTouch);
+        document.removeEventListener("mousedown", onTouch);
+        window.removeEventListener("scroll", onScroll);
+      };
+    }, []);
+    if (hidden) return null;
+    return ReactDOM.createPortal(html`
+      <div className="tip tip-mobile" role="dialog" aria-label="Chart details">
+        <button type="button" className="tip-close" aria-label="Close" onClick=${() => setHidden(true)}>×</button>
+        ${text}
+      </div>`, document.body);
+  }
   const tipBox = ({ active, payload }) => {
     if (!(active && payload && payload[0] && payload[0].payload.tip)) return null;
-    const box = html`<div className=${"tip" + (narrow() ? " tip-mobile" : "")}>${payload[0].payload.tip}</div>`;
-    return narrow() ? ReactDOM.createPortal(box, document.body) : box;
+    const text = payload[0].payload.tip;
+    return narrow() ? html`<${MobileTip} text=${text} />` : html`<div className="tip">${text}</div>`;
   };
   function CatStrip({ rows, dataKey, ticks, fmt, height = 30 }) {
     return html`
